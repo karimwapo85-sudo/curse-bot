@@ -22,6 +22,25 @@ intents.message_content = True
 
 bot = commands.Bot(command_prefix=PREFIX, intents=intents, application_id=APPLICATION_ID, help_command=None)
 
+
+async def send_embed(ctx, title, description, color=discord.Color.blurple(), footer=None, delete_after=None, thumbnail=None, image=None, fields=None):
+    embed = discord.Embed(title=title, description=description, color=color, timestamp=datetime.datetime.now(datetime.timezone.utc))
+    if thumbnail:
+        embed.set_thumbnail(url=thumbnail)
+    else:
+        embed.set_thumbnail(url=bot.user.display_avatar.url)
+    if image:
+        embed.set_image(url=image)
+    if fields:
+        for field_name, field_value, inline in fields:
+            embed.add_field(name=field_name, value=field_value, inline=inline)
+    if footer:
+        embed.set_footer(text=footer, icon_url=bot.user.display_avatar.url)
+    else:
+        embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
+    await ctx.send(embed=embed, delete_after=delete_after)
+
+
 # --- simple persistent config ---
 # Welcome messages were removed for a simpler command set.
 
@@ -49,11 +68,11 @@ async def on_ready():
 @bot.event
 async def on_command_error(ctx, error):
     if isinstance(error, commands.MissingPermissions):
-        await ctx.send("❌ You do not have permission to run this command.")
+        await send_embed(ctx, "❌ Access denied", "You do not have permission to run this command.", color=discord.Color.red())
     elif isinstance(error, commands.MissingRequiredArgument):
-        await ctx.send(f"⚠️ Missing argument: {error}")
+        await send_embed(ctx, "⚠️ Missing argument", str(error), color=discord.Color.orange())
     elif isinstance(error, commands.BadArgument):
-        await ctx.send("⚠️ The provided argument is invalid.")
+        await send_embed(ctx, "⚠️ Invalid input", "The provided argument is invalid.", color=discord.Color.orange())
     else:
         print(f"Error: {error}")
 
@@ -72,7 +91,14 @@ async def on_member_join(member):
     if len(raid_join_times) >= raid_threshold:
         anti_raid_enabled = False
         try:
-            await member.guild.system_channel.send("🚨 A possible join raid was detected. Protection is enabled and recent members were reviewed.")
+            if member.guild.system_channel:
+                await member.guild.system_channel.send(
+                    embed=discord.Embed(
+                        title="🚨 Possible raid detected",
+                        description="Protection is enabled and recent members were reviewed.",
+                        color=discord.Color.red(),
+                    )
+                )
         except Exception:
             pass
 
@@ -107,7 +133,13 @@ async def on_message(message):
         bucket.clear()
         try:
             await message.author.timeout(datetime.timedelta(minutes=5), reason="Anti-spam")
-            await message.channel.send(f"⛔ {message.author.mention} was timed out for spam.")
+            await message.channel.send(
+                embed=discord.Embed(
+                    title="⛔ Spam detected",
+                    description=f"{message.author.mention} was timed out for spam.",
+                    color=discord.Color.red(),
+                )
+            )
         except Exception:
             pass
 
@@ -116,55 +148,64 @@ async def on_message(message):
 
 @bot.hybrid_command(name="help", description="Shows the available commands")
 async def bot_help(ctx):
-    embed = discord.Embed(title="🤖 CurseBot Commands", color=discord.Color.blurple())
-    embed.add_field(name="🔧 Moderation", value="`/clear`, `/kick`, `/ban`, `/unban`, `/timeout`, `/untimeout`, `/warn`, `/giverole`, `/removerole`", inline=False)
-    embed.add_field(name="🛡️ Protection", value="`/anti-raid`, `/setraidthreshold`, `/anti-spam`, `/setspamthreshold`, `/sync`", inline=False)
-    embed.add_field(name="🛠️ Utility", value="`/ping`, `/serverinfo`, `/userinfo`, `/say`, `/avatar`, `/invite`, `/about`, `/roleinfo`", inline=False)
-    embed.add_field(name="🎲 Fun", value="`/coinflip`, `/roll`, `/8ball`", inline=False)
+    embed = discord.Embed(title="🤖 CurseBot Commands", color=discord.Color.blurple(), timestamp=datetime.datetime.now(datetime.timezone.utc))
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.add_field(name="🔧 Moderation", value="```/clear, /kick, /ban, /unban, /timeout, /untimeout, /warn, /giverole, /removerole```", inline=False)
+    embed.add_field(name="🛡️ Protection", value="```/anti-raid, /setraidthreshold, /anti-spam, /setspamthreshold, /sync```", inline=False)
+    embed.add_field(name="🛠️ Utility", value="```/ping, /serverinfo, /userinfo, /say, /avatar, /invite, /about, /roleinfo```", inline=False)
+    embed.add_field(name="🎲 Fun", value="```/coinflip, /roll, /8ball```", inline=False)
+    embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)
 
 
 @bot.hybrid_command(name="ping", description="Measures the bot latency")
 async def ping(ctx):
-    await ctx.send(f"🏓 Pong! {round(bot.latency * 1000)}ms")
+    await send_embed(ctx, "🏓 Pong", f"Latency: {round(bot.latency * 1000)}ms", color=discord.Color.blurple())
 
 
 @bot.hybrid_command(name="serverinfo", description="Shows server information")
 async def serverinfo(ctx):
     guild = ctx.guild
-    embed = discord.Embed(title=guild.name, color=discord.Color.green())
+    embed = discord.Embed(title=f"📊 {guild.name}", color=discord.Color.green(), timestamp=datetime.datetime.now(datetime.timezone.utc))
+    embed.set_thumbnail(url=guild.icon.url if guild.icon else None)
     embed.add_field(name="👑 Owner", value=guild.owner.mention if guild.owner else "Unknown", inline=True)
     embed.add_field(name="👥 Members", value=str(guild.member_count), inline=True)
     embed.add_field(name="📅 Created", value=guild.created_at.strftime("%d/%m/%Y"), inline=True)
+    embed.add_field(name="🆔 Server ID", value=str(guild.id), inline=True)
+    embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)
 
 
 @bot.hybrid_command(name="userinfo", description="Shows information about a user")
 async def userinfo(ctx, member: discord.Member = None):
     member = member or ctx.author
-    embed = discord.Embed(title=f"Info for {member}", color=discord.Color.orange())
+    embed = discord.Embed(title=f"👤 {member}", color=discord.Color.orange(), timestamp=datetime.datetime.now(datetime.timezone.utc))
+    embed.set_thumbnail(url=member.display_avatar.url)
     embed.add_field(name="🆔 ID", value=str(member.id), inline=True)
     embed.add_field(name="📅 Joined", value=member.joined_at.strftime("%d/%m/%Y") if member.joined_at else "Unknown", inline=True)
     embed.add_field(name="🤖 Bot", value="Yes" if member.bot else "No", inline=True)
+    embed.add_field(name="🔗 Status", value=str(member.status).title(), inline=True)
+    embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)
 
 
 @bot.hybrid_command(name="say", description="Make the bot say something")
 async def say(ctx, *, message: str):
-    await ctx.send(message)
+    await send_embed(ctx, "💬 Message sent", message, color=discord.Color.green())
 
 
 @bot.hybrid_command(name="coinflip", description="Flip a coin")
 async def coinflip(ctx):
-    await ctx.send("🪙 Heads" if random.choice([True, False]) else "🪙 Tails")
+    result = "🪙 Heads" if random.choice([True, False]) else "🪙 Tails"
+    await send_embed(ctx, "🎲 Coin flip", result, color=discord.Color.gold())
 
 
 @bot.hybrid_command(name="roll", description="Generate a random number")
 async def roll(ctx, max_value: int = 6):
     if max_value < 1:
-        await ctx.send("⚠️ The number must be greater than 0")
+        await send_embed(ctx, "⚠️ Invalid range", "The number must be greater than 0", color=discord.Color.orange())
         return
-    await ctx.send(f"🎲 Result: {random.randint(1, max_value)}")
+    await send_embed(ctx, "🎲 Random roll", f"Result: {random.randint(1, max_value)}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="8ball", description="Answer a question")
@@ -177,34 +218,39 @@ async def eight_ball(ctx, *, question: str):
         "Ask again",
         "Looks promising",
     ]
-    await ctx.send(f"🎱 {random.choice(responses)}")
+    await send_embed(ctx, "🎱 Magic 8 Ball", f"{random.choice(responses)}", color=discord.Color.purple())
 
 
 @bot.hybrid_command(name="avatar", description="Shows a user's avatar")
 async def avatar(ctx, member: discord.Member = None):
     member = member or ctx.author
-    embed = discord.Embed(title=f"Avatar of {member}", color=discord.Color.purple())
+    embed = discord.Embed(title=f"👤 Avatar of {member}", color=discord.Color.purple(), timestamp=datetime.datetime.now(datetime.timezone.utc))
     embed.set_image(url=member.display_avatar.url)
+    embed.set_thumbnail(url=bot.user.display_avatar.url)
+    embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)
 
 
 @bot.hybrid_command(name="invite", description="Shows the bot invite link")
 async def invite(ctx):
     invite_url = f"https://discord.com/oauth2/authorize?client_id={APPLICATION_ID}&permissions=8&scope=bot%20applications.commands"
-    await ctx.send(f"🔗 Invite CurseBot: {invite_url}")
+    await send_embed(ctx, "🔗 Invite CurseBot", f"[Click here to invite me to your server]({invite_url})", color=discord.Color.blurple())
 
 
 @bot.hybrid_command(name="about", description="Bot information")
 async def about(ctx):
-    await ctx.send("CurseBot — English moderation bot. Use /help for available commands.")
+    await send_embed(ctx, "🤖 About CurseBot", "English moderation bot. Use /help for available commands.", color=discord.Color.teal())
 
 
 @bot.hybrid_command(name="roleinfo", description="Shows information about a role")
 async def roleinfo(ctx, role: discord.Role):
-    embed = discord.Embed(title=f"Role: {role.name}", color=role.color)
+    embed = discord.Embed(title=f"🏷️ {role.name}", color=role.color if role.color != discord.Color.default() else discord.Color.blurple(), timestamp=datetime.datetime.now(datetime.timezone.utc))
     embed.add_field(name="🆔 ID", value=str(role.id), inline=True)
     embed.add_field(name="👥 Members", value=str(len(role.members)), inline=True)
     embed.add_field(name="🎨 Color", value=str(role.color), inline=True)
+    embed.add_field(name="📍 Position", value=str(role.position), inline=True)
+    embed.add_field(name="⭐ Mentionable", value="Yes" if role.mentionable else "No", inline=True)
+    embed.set_footer(text=f"CurseBot • {ctx.author.name}", icon_url=bot.user.display_avatar.url)
     await ctx.send(embed=embed)
 
 
@@ -213,10 +259,10 @@ async def roleinfo(ctx, role: discord.Role):
 @app_commands.checks.has_permissions(manage_messages=True)
 async def clear(ctx, amount: int = 5):
     if amount < 1 or amount > 100:
-        await ctx.send("⚠️ Use a number between 1 and 100")
+        await send_embed(ctx, "⚠️ Invalid amount", "Use a number between 1 and 100", color=discord.Color.orange())
         return
     await ctx.channel.purge(limit=amount + 1)
-    await ctx.send(f"🧹 Deleted {amount} messages.", delete_after=5)
+    await send_embed(ctx, "🧹 Messages cleared", f"Deleted {amount} messages.", color=discord.Color.green(), delete_after=5)
 
 
 @bot.hybrid_command(name="kick", description="Kick a member")
@@ -224,7 +270,7 @@ async def clear(ctx, amount: int = 5):
 @app_commands.checks.has_permissions(kick_members=True)
 async def kick(ctx, member: discord.Member, *, reason: str = "No reason"):
     await member.kick(reason=reason)
-    await ctx.send(f"👢 {member.mention} was kicked. Reason: {reason}")
+    await send_embed(ctx, "👢 Member kicked", f"{member.mention} was kicked.\nReason: {reason}", color=discord.Color.red())
 
 
 @bot.hybrid_command(name="ban", description="Ban a member")
@@ -232,7 +278,7 @@ async def kick(ctx, member: discord.Member, *, reason: str = "No reason"):
 @app_commands.checks.has_permissions(ban_members=True)
 async def ban(ctx, member: discord.Member, *, reason: str = "No reason"):
     await member.ban(reason=reason)
-    await ctx.send(f"🔨 {member.mention} was banned. Reason: {reason}")
+    await send_embed(ctx, "🔨 Member banned", f"{member.mention} was banned.\nReason: {reason}", color=discord.Color.red())
 
 
 @bot.hybrid_command(name="unban", description="Unban a user")
@@ -240,7 +286,7 @@ async def ban(ctx, member: discord.Member, *, reason: str = "No reason"):
 @app_commands.checks.has_permissions(ban_members=True)
 async def unban(ctx, user: discord.User):
     await ctx.guild.unban(user)
-    await ctx.send(f"✅ {user.mention} was unbanned.")
+    await send_embed(ctx, "✅ Member unbanned", f"{user.mention} was unbanned.", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="timeout", description="Timeout a user for a few minutes")
@@ -248,10 +294,10 @@ async def unban(ctx, user: discord.User):
 @app_commands.checks.has_permissions(moderate_members=True)
 async def timeout(ctx, member: discord.Member, minutes: int = 10, *, reason: str = "No reason"):
     if minutes < 1 or minutes > 10080:
-        await ctx.send("⚠️ Minutes must be between 1 and 10080")
+        await send_embed(ctx, "⚠️ Invalid timeout", "Minutes must be between 1 and 10080", color=discord.Color.orange())
         return
     await member.timeout(datetime.timedelta(minutes=minutes), reason=reason)
-    await ctx.send(f"⏱️ {member.mention} was timed out for {minutes} minutes. Reason: {reason}")
+    await send_embed(ctx, "⏱️ Member timed out", f"{member.mention} was timed out for {minutes} minutes.\nReason: {reason}", color=discord.Color.orange())
 
 
 @bot.hybrid_command(name="untimeout", description="Remove timeout from a user")
@@ -259,14 +305,14 @@ async def timeout(ctx, member: discord.Member, minutes: int = 10, *, reason: str
 @app_commands.checks.has_permissions(moderate_members=True)
 async def untimeout(ctx, member: discord.Member):
     await member.remove_timeout()
-    await ctx.send(f"✅ Timeout removed from {member.mention}")
+    await send_embed(ctx, "✅ Timeout removed", f"Timeout removed from {member.mention}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="warn", description="Warn a user")
 @commands.has_permissions(moderate_members=True)
 @app_commands.checks.has_permissions(moderate_members=True)
 async def warn(ctx, member: discord.Member, *, reason: str = "No reason"):
-    await ctx.send(f"⚠️ {member.mention} was warned. Reason: {reason}")
+    await send_embed(ctx, "⚠️ Warning issued", f"{member.mention} was warned.\nReason: {reason}", color=discord.Color.orange())
 
 
 @bot.hybrid_command(name="giverole", description="Give a role to a user")
@@ -274,10 +320,10 @@ async def warn(ctx, member: discord.Member, *, reason: str = "No reason"):
 @app_commands.checks.has_permissions(manage_roles=True)
 async def giverole(ctx, member: discord.Member, role: discord.Role):
     if role >= ctx.author.top_role and ctx.guild.owner_id != ctx.author.id:
-        await ctx.send("⚠️ You cannot assign a role higher than your own.")
+        await send_embed(ctx, "⚠️ Role restriction", "You cannot assign a role higher than your own.", color=discord.Color.orange())
         return
     await member.add_roles(role)
-    await ctx.send(f"✅ Gave {role.mention} to {member.mention}")
+    await send_embed(ctx, "✅ Role assigned", f"Gave {role.mention} to {member.mention}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="removerole", description="Remove a role from a user")
@@ -285,10 +331,10 @@ async def giverole(ctx, member: discord.Member, role: discord.Role):
 @app_commands.checks.has_permissions(manage_roles=True)
 async def removerole(ctx, member: discord.Member, role: discord.Role):
     if role >= ctx.author.top_role and ctx.guild.owner_id != ctx.author.id:
-        await ctx.send("⚠️ You cannot remove a role higher than your own.")
+        await send_embed(ctx, "⚠️ Role restriction", "You cannot remove a role higher than your own.", color=discord.Color.orange())
         return
     await member.remove_roles(role)
-    await ctx.send(f"✅ Removed {role.mention} from {member.mention}")
+    await send_embed(ctx, "✅ Role removed", f"Removed {role.mention} from {member.mention}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="anti-raid", description="Enable or disable anti-raid protection")
@@ -297,15 +343,15 @@ async def removerole(ctx, member: discord.Member, role: discord.Role):
 async def anti_raid(ctx, state: str = None):
     global anti_raid_enabled
     if state is None:
-        await ctx.send(f"🛡️ Anti-raid is {'enabled' if anti_raid_enabled else 'disabled'}")
+        await send_embed(ctx, "🛡️ Anti-raid", f"Current status: {'enabled' if anti_raid_enabled else 'disabled'}", color=discord.Color.blurple())
         return
 
     if state.lower() in {"on", "enable", "true", "enabled", "activate", "activated"}:
         anti_raid_enabled = True
-        await ctx.send("🛡️ Anti-raid enabled")
+        await send_embed(ctx, "🛡️ Anti-raid enabled", "Protection is now active.", color=discord.Color.green())
     else:
         anti_raid_enabled = False
-        await ctx.send("🛡️ Anti-raid disabled")
+        await send_embed(ctx, "🛡️ Anti-raid disabled", "Protection is now off.", color=discord.Color.orange())
 
 
 @bot.hybrid_command(name="setraidthreshold", description="Change the anti-raid detection threshold")
@@ -314,10 +360,10 @@ async def anti_raid(ctx, state: str = None):
 async def set_raid_threshold(ctx, threshold: int):
     global raid_threshold
     if threshold < 2:
-        await ctx.send("⚠️ The threshold must be 2 or higher")
+        await send_embed(ctx, "⚠️ Invalid threshold", "The threshold must be 2 or higher", color=discord.Color.orange())
         return
     raid_threshold = threshold
-    await ctx.send(f"✅ Anti-raid threshold updated to {threshold}")
+    await send_embed(ctx, "✅ Threshold updated", f"Anti-raid threshold updated to {threshold}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="anti-spam", description="Enable or disable anti-spam protection")
@@ -326,15 +372,15 @@ async def set_raid_threshold(ctx, threshold: int):
 async def anti_spam(ctx, state: str = None):
     global anti_spam_enabled
     if state is None:
-        await ctx.send(f"🛡️ Anti-spam is {'enabled' if anti_spam_enabled else 'disabled'}")
+        await send_embed(ctx, "🛡️ Anti-spam", f"Current status: {'enabled' if anti_spam_enabled else 'disabled'}", color=discord.Color.blurple())
         return
 
     if state.lower() in {"on", "enable", "true", "enabled", "activate", "activated"}:
         anti_spam_enabled = True
-        await ctx.send("🛡️ Anti-spam enabled")
+        await send_embed(ctx, "🛡️ Anti-spam enabled", "Protection is now active.", color=discord.Color.green())
     else:
         anti_spam_enabled = False
-        await ctx.send("🛡️ Anti-spam disabled")
+        await send_embed(ctx, "🛡️ Anti-spam disabled", "Protection is now off.", color=discord.Color.orange())
 
 
 @bot.hybrid_command(name="setspamthreshold", description="Change the anti-spam detection threshold")
@@ -343,10 +389,10 @@ async def anti_spam(ctx, state: str = None):
 async def set_spam_threshold(ctx, threshold: int):
     global spam_threshold
     if threshold < 2:
-        await ctx.send("⚠️ The threshold must be 2 or higher")
+        await send_embed(ctx, "⚠️ Invalid threshold", "The threshold must be 2 or higher", color=discord.Color.orange())
         return
     spam_threshold = threshold
-    await ctx.send(f"✅ Anti-spam threshold updated to {threshold}")
+    await send_embed(ctx, "✅ Threshold updated", f"Anti-spam threshold updated to {threshold}", color=discord.Color.green())
 
 
 @bot.hybrid_command(name="sync", description="Manually sync slash commands")
@@ -355,10 +401,10 @@ async def sync(ctx):
     if GUILD_ID:
         guild_obj = discord.Object(id=int(GUILD_ID))
         synced = await bot.tree.sync(guild=guild_obj)
-        await ctx.send(f"🔄 Slash commands synced ({len(synced)}) for this server.")
+        await send_embed(ctx, "🔄 Slash commands synced", f"Synced {len(synced)} command(s) for this server.", color=discord.Color.blurple())
     else:
         synced = await bot.tree.sync()
-        await ctx.send(f"🔄 Slash commands synced globally ({len(synced)})")
+        await send_embed(ctx, "🔄 Slash commands synced", f"Synced {len(synced)} command(s) globally.", color=discord.Color.blurple())
 
 
 if __name__ == "__main__":
