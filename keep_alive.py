@@ -1,11 +1,15 @@
-import os
-import random
-import datetime
-import discord
-from discord.ext import commands
-from keep_alive import keep_alive  # <--- Asegúrate de que esta línea esté
+from flask import Flask
+from threading import Thread
 
-# 1. START INVISIBLE WEB SERVER
-print("Iniciando servidor keep_alive...") # <--- Añade este print para rastrearlo en los logs
-keep_alive()
-print("Servidor keep_alive iniciado con éxito!") # <--- Añade este otro
+app = Flask('')
+
+@app.route('/')
+def home():
+    return "I'm alive!"
+
+def run():
+    app.run(host='0.0.0.0', port=8080)
+
+def keep_alive():
+    t = Thread(target=run)
+    t.start()
