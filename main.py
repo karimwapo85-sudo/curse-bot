@@ -7,12 +7,11 @@ from dotenv import load_dotenv
 # 1. Cargar variables de entorno (.env)
 load_dotenv()
 
-# 2. Inicializar la Base de Datos SQLite de forma limpia
+# 2. Inicializar la Base de Datos SQLite
 def init_db():
     conn = sqlite3.connect("database.db")
     cursor = conn.cursor()
     
-    # Creamos la tabla con todas las columnas necesarias organizadas
     cursor.execute("""
     CREATE TABLE IF NOT EXISTS guilds (
         guild_id INTEGER PRIMARY KEY,
@@ -33,13 +32,13 @@ intents.message_content = True
 intents.members = True
 intents.guilds = True
 
-# 4. Clase principal del Bot
+# 4. Clase principal del Bot Público
 class CurseBot(commands.Bot):
     def __init__(self):
         super().__init__(command_prefix="c!", intents=intents)
 
     async def setup_hook(self):
-        # Cargar todos los módulos automáticos de la carpeta /cogs
+        # Cargar todos los módulos de la carpeta /cogs
         for filename in os.listdir('./cogs'):
             if filename.endswith('.py'):
                 try:
@@ -48,30 +47,30 @@ class CurseBot(commands.Bot):
                 except Exception as e:
                     print(f"❌ Error loading {filename}: {e}")
         
-        # Sincronización global automática de comandos de barra (/)
+        # 🌍 Sincronización GLOBAL para que funcione en todos los servidores públicos
         print("🔄 Syncing commands globally with Discord...")
         try:
             await self.tree.sync()
-            print("⚡ All Slash Commands synced globally and ready!")
+            print("⚡ Slash Commands synced GLOBALLY for all servers!")
         except Exception as e:
-            print(f"⚠️ Sync error: {e}")
+            print(f"⚠️ Global sync error: {e}")
 
 bot = CurseBot()
 
-# 5. Evento cuando el bot se conecta correctamente
+# 5. Evento de conexión
 @bot.event
 async def on_ready():
     print("=========================================")
-    print(f"🤖 {bot.user.name} is online and ready!")
+    print(f"🤖 {bot.user.name} is online and ready for public use!")
     print("=========================================")
     await bot.change_presence(activity=discord.Activity(
         type=discord.ActivityType.listening, 
         name="/help"
     ))
 
-# 6. Ejecutar el Bot de forma segura
+# 6. Ejecutar el Bot
 token = os.environ.get("DISCORD_TOKEN")
 if token:
     bot.run(token)
 else:
-    print("❌ ERROR: DISCORD_TOKEN not found in your .env file.")
+    print("❌ ERROR: DISCORD_TOKEN not found.")
